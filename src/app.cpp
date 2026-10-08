@@ -583,15 +583,8 @@ void App::updateStatus() {
     status_ = buffer;
     const auto game = resolveGameTarget();
     overlay_.setGameWindow(game.window);
-    if (game.window && game.exclusiveD3d) {
-        static auto lastBorderlessAttempt = std::chrono::steady_clock::now() -
-            std::chrono::seconds(5);
-        const auto nowAttempt = std::chrono::steady_clock::now();
-        if (nowAttempt - lastBorderlessAttempt > std::chrono::seconds(2)) {
-            lastBorderlessAttempt = nowAttempt;
-            tryMakeBorderless(game.window);
-        }
-    }
+    // Never modify the game's window style or send Alt+Enter.
+    // Exclusive fullscreen is captured directly from the monitor.
     if (settings_.showOverlay) overlay_.refresh();
     postUiState(false);
 }
