@@ -818,7 +818,7 @@ HRESULT MediaEngine::stopRecording() {
         lock.unlock();
         return publishFinishedFile(E_ABORT);
     }
-    return S_OK;
+    return encoderResult_;
 }
 
 void MediaEngine::abandonEncoderLocked() {
@@ -1058,7 +1058,7 @@ void MediaEngine::encoderLoop() {
             auto session = session_;
             const auto generation = encoderGeneration_.load();
             lock.unlock();
-            if (session) finishFile(session, generation);
+            if (session) (void)finishFile(session, generation);
             lock.lock();
             frameQueue_.clear();
             encoderCommand_ = EncoderCommand::None;
@@ -1088,7 +1088,7 @@ void MediaEngine::encoderLoop() {
                 lock.lock();
             }
             lock.unlock();
-            finishFile(session, generation);
+            encoderResult_ = finishFile(session, generation);
             lock.lock();
             encoderCommand_ = EncoderCommand::None;
             encoderCv_.notify_all();
@@ -1111,7 +1111,7 @@ void MediaEngine::encoderLoop() {
     }
 }
 
-void MediaEngine::finishFile(const std::shared_ptr<EncodeSession>& session, uint64_t generation) {
+HRESULT MediaEngine::finishFile(const std::shared_ptr<EncodeSession>& session, uint64_t generation) {
     gpuPaused_ = true;
 
     HRESULT finalizeResult = S_OK;
@@ -1134,8 +1134,8 @@ void MediaEngine::finishFile(const std::shared_ptr<EncodeSession>& session, uint
     }
     if (session_ == session) session_.reset();
     gpuPaused_ = false;
-    if (generation != encoderGeneration_.load()) return;
-    publishFinishedFile(finalizeResult);
+    if (generation != encoderGeneration_.load()) return E_ABORT;
+    return publishFinishedFile(finalizeResult);
 }
 
 HRESULT MediaEngine::publishFinishedFile(HRESULT finalizeResult) {
