@@ -155,7 +155,9 @@ void Settings::normalizeEncodePreset() {
     else if (fps < 90) fps = 60;
     else fps = 120;
     videoCodec = std::min(2u, videoCodec);
-    bitrateMbps = suggestedBitrateMbps(width, height, fps, videoCodec);
+    const uint32_t minBitrate = videoCodec == 0 ? 25u : (videoCodec == 1 ? 12u : 8u);
+    const uint32_t maxBitrate = videoCodec == 0 ? 150u : (videoCodec == 1 ? 80u : 55u);
+    bitrateMbps = std::clamp(bitrateMbps, minBitrate, maxBitrate);
 }
 
 uint32_t suggestedBitrateMbps(uint32_t width, uint32_t height, uint32_t fps, uint32_t codec) noexcept {
