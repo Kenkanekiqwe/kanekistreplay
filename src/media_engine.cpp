@@ -502,7 +502,13 @@ HRESULT MediaEngine::createSinkWriter(const std::filesystem::path& target) {
         }
         if (SUCCEEDED(hr)) hr = session->writer->BeginWriting();
         if (SUCCEEDED(hr)) {
-            session->gpuInput = hardware && deviceManager_ != nullptr;
+            // The encoder itself remains hardware/GPU-backed. Do not force DXGI
+            // surface samples into the Sink Writer: Windows' built-in hardware
+            // MFTs are not required to accept arbitrary RGB32 DXGI surfaces,
+            // and rejecting every WriteSample results in MF_E_NO_SAMPLES_PROCESSED
+            // during Finalize. Frames are still captured/scaled on the GPU, then
+            // uploaded through the Sink Writer's supported RGB32 input path.
+            session->gpuInput = false;
             applyEncoderQuality(session->writer.Get(), session->videoStream, fps, bitrateMbps);
             return S_OK;
         }
