@@ -948,6 +948,38 @@ HRESULT MediaEngine::blitScale(ID3D11Texture2D* source) {
         &outputDesc, &outputView);
     if (FAILED(hr)) return hr;
 
+    // Match source and output aspect ratios by cropping the center of the
+    // source. This prevents 16:10 / 4:3 captures from being stretched into
+    // a 16:9 recording preset.
+    uint32_t cropW = sourceDesc.Width;
+    uint32_t cropH = sourceDesc.Height;
+    const double srcAspect = static_cast<double>(sourceDesc.Width) /
+        static_cast<double>(sourceDesc.Height);
+    const double dstAspect = static_cast<double>(encodeWidth_) /
+        static_cast<double>(encodeHeight_);
+    if (srcAspect > dstAspect) {
+        cropW = static_cast<uint32_t>(
+            std::floor(static_cast<double>(sourceDesc.Height) * dstAspect));
+        cropW = std::clamp(cropW & ~1u, 2u, sourceDesc.Width);
+    } else if (srcAspect < dstAspect) {
+        cropH = static_cast<uint32_t>(
+            std::floor(static_cast<double>(sourceDesc.Width) / dstAspect));
+        cropH = std::clamp(cropH & ~1u, 2u, sourceDesc.Height);
+    }
+
+    D3D11_RECT sourceRect{};
+    sourceRect.left = static_cast<LONG>((sourceDesc.Width - cropW) / 2);
+    sourceRect.top = static_cast<LONG>((sourceDesc.Height - cropH) / 2);
+    sourceRect.right = sourceRect.left + static_cast<LONG>(cropW);
+    sourceRect.bottom = sourceRect.top + static_cast<LONG>(cropH);
+    videoContext_->VideoProcessorSetStreamSourceRect(
+        videoProcessor_.Get(), 0, TRUE, &sourceRect);
+
+    D3D11_RECT destinationRect{0, 0,
+        static_cast<LONG>(encodeWidth_), static_cast<LONG>(encodeHeight_)};
+    videoContext_->VideoProcessorSetStreamDestRect(
+        videoProcessor_.Get(), 0, TRUE, &destinationRect);
+
     D3D11_VIDEO_PROCESSOR_STREAM stream{};
     stream.Enable = TRUE;
     stream.pInputSurface = inputView.Get();
