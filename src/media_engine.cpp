@@ -469,6 +469,9 @@ HRESULT MediaEngine::createSinkWriter(const std::filesystem::path& target) {
         if (SUCCEEDED(hr)) {
             hr = attributes->SetUINT32(MF_READWRITE_ENABLE_HARDWARE_TRANSFORMS, hardware);
         }
+        if (SUCCEEDED(hr) && hardware && deviceManager_) {
+            hr = attributes->SetUnknown(MF_SINK_WRITER_D3D_MANAGER, deviceManager_.Get());
+        }
         if (SUCCEEDED(hr)) hr = attributes->SetGUID(MF_TRANSCODE_CONTAINERTYPE, MFTranscodeContainerType_MPEG4);
         if (SUCCEEDED(hr)) {
             hr = MFCreateSinkWriterFromURL(target.c_str(), nullptr, attributes.Get(), &session->writer);
@@ -499,6 +502,7 @@ HRESULT MediaEngine::createSinkWriter(const std::filesystem::path& target) {
         }
         if (SUCCEEDED(hr)) hr = session->writer->BeginWriting();
         if (SUCCEEDED(hr)) {
+            session->gpuInput = hardware && deviceManager_ != nullptr;
             applyEncoderQuality(session->writer.Get(), session->videoStream, fps, bitrateMbps);
             return S_OK;
         }
@@ -956,19 +960,47 @@ HRESULT MediaEngine::copyFramePixels(ID3D11Texture2D* texture, std::vector<uint8
 }
 
 HRESULT MediaEngine::enqueueFrame(ID3D11Texture2D* texture) {
-    std::vector<uint8_t> pixels;
-    const HRESULT hr = copyFramePixels(texture, pixels);
-    if (FAILED(hr) || pixels.empty()) return FAILED(hr) ? hr : E_FAIL;
-    const int64_t origin = recordingOrigin100ns_.load();
-    int64_t timestamp = QpcClock::absolute100ns() - (origin > 0 ? origin : 0);
-    if (timestamp < 0) timestamp = 0;
+    if (!texture) return E_INVALIDARG;
+
+    bool gpuInput = false;
     {
         std::scoped_lock lock(encoderMutex_);
-        if (frameQueue_.size() >= 8) {
+        gpuInput = session_ && session_->gpuInput;
+    }
+
+    QueuedFrame frame;
+    frame.timestamp100ns = QpcClock::absolute100ns() -
+        (recordingOrigin100ns_.load() > 0 ? recordingOrigin100ns_.load() : 0);
+    if (frame.timestamp100ns < 0) frame.timestamp100ns = 0;
+
+    HRESULT hr = S_OK;
+    if (gpuInput) {
+        // Keep the frame on the D3D11 device. The encoder receives the
+        // texture through MFCreateDXGISurfaceBuffer, so no full-frame
+        // GPU->CPU readback/copy is performed.
+        hr = prepareEncodeTexture(texture);
+        if (SUCCEEDED(hr) && encodeTexture_) {
+            D3D11_TEXTURE2D_DESC desc{};
+            encodeTexture_->GetDesc(&desc);
+            hr = device_->CreateTexture2D(&desc, nullptr, &frame.texture);
+            if (SUCCEEDED(hr)) {
+                context_->CopyResource(frame.texture.Get(), encodeTexture_.Get());
+            }
+        }
+    } else {
+        hr = copyFramePixels(texture, frame.pixels);
+    }
+    if (FAILED(hr)) return hr;
+    if (!gpuInput && frame.pixels.empty()) return E_FAIL;
+    if (gpuInput && !frame.texture) return E_FAIL;
+
+    {
+        std::scoped_lock lock(encoderMutex_);
+        if (frameQueue_.size() >= 4) {
             frameQueue_.pop_front();
             ++droppedFrames_;
         }
-        frameQueue_.push_back(QueuedFrame{std::move(pixels), timestamp});
+        frameQueue_.push_back(std::move(frame));
     }
     encoderCv_.notify_one();
     return S_OK;
@@ -976,22 +1008,30 @@ HRESULT MediaEngine::enqueueFrame(ID3D11Texture2D* texture) {
 
 HRESULT MediaEngine::writeQueuedFrame(const std::shared_ptr<EncodeSession>& session,
                                       const QueuedFrame& frame) {
-    if (!session || !session->writer || frame.pixels.empty()) return E_FAIL;
-    const DWORD bufferBytes = static_cast<DWORD>(frame.pixels.size());
+    if (!session || !session->writer) return E_FAIL;
     const int64_t duration = 10'000'000 / std::max(1u, encodeFps_);
     int64_t timestamp = frame.timestamp100ns;
     const int64_t previousEnd = lastVideoSampleEnd100ns_.load();
     if (timestamp < previousEnd) timestamp = previousEnd;
 
     ComPtr<IMFMediaBuffer> buffer;
-    HRESULT hr = MFCreateMemoryBuffer(bufferBytes, &buffer);
-    BYTE* destination{};
-    if (SUCCEEDED(hr)) hr = buffer->Lock(&destination, nullptr, nullptr);
-    if (SUCCEEDED(hr)) {
-        std::memcpy(destination, frame.pixels.data(), frame.pixels.size());
-        buffer->Unlock();
-        hr = buffer->SetCurrentLength(bufferBytes);
+    HRESULT hr = E_FAIL;
+    if (session->gpuInput && frame.texture) {
+        hr = MFCreateDXGISurfaceBuffer(
+            IID_ID3D11Texture2D, frame.texture.Get(), 0, FALSE, &buffer);
+    } else if (!frame.pixels.empty()) {
+        const DWORD bufferBytes = static_cast<DWORD>(frame.pixels.size());
+        hr = MFCreateMemoryBuffer(bufferBytes, &buffer);
+        BYTE* destination{};
+        if (SUCCEEDED(hr)) hr = buffer->Lock(&destination, nullptr, nullptr);
+        if (SUCCEEDED(hr)) {
+            std::memcpy(destination, frame.pixels.data(), frame.pixels.size());
+            buffer->Unlock();
+            hr = buffer->SetCurrentLength(bufferBytes);
+        }
     }
+    if (FAILED(hr) || !buffer) return FAILED(hr) ? hr : E_FAIL;
+
     ComPtr<IMFSample> sample;
     if (SUCCEEDED(hr)) hr = MFCreateSample(&sample);
     if (SUCCEEDED(hr)) hr = sample->AddBuffer(buffer.Get());
