@@ -799,8 +799,8 @@ bool MediaEngine::muxAudioTrackMediaFoundation() {
     return true;
 }
 
-void MediaEngine::stopRecording() {
-    if (!recording_.exchange(false)) return;
+HRESULT MediaEngine::stopRecording() {
+    if (!recording_.exchange(false)) return S_FALSE;
     {
         std::scoped_lock audioLock(audioMutex_);
         if (audioRaw_) {
@@ -816,8 +816,9 @@ void MediaEngine::stopRecording() {
         Logger::instance().write(L"ERROR", L"Encoder finalize hung, abandoning writer");
         abandonEncoderLocked();
         lock.unlock();
-        publishFinishedFile(E_ABORT);
+        return publishFinishedFile(E_ABORT);
     }
+    return S_OK;
 }
 
 void MediaEngine::abandonEncoderLocked() {
@@ -1137,14 +1138,16 @@ void MediaEngine::finishFile(const std::shared_ptr<EncodeSession>& session, uint
     publishFinishedFile(finalizeResult);
 }
 
-void MediaEngine::publishFinishedFile(HRESULT finalizeResult) {
+HRESULT MediaEngine::publishFinishedFile(HRESULT finalizeResult) {
     std::error_code error;
     const bool haveFrames = encodedFrames_.load() > 0 && !recordingPartial_.empty();
     const bool finalized = SUCCEEDED(finalizeResult);
+    bool published = false;
     if (haveFrames && (finalized || std::filesystem::exists(recordingPartial_))) {
         if (finalized && muxAudioTrack()) {
             if (!quietIo_) Logger::instance().write(L"INFO", L"Audio track muxed into recording");
             std::filesystem::remove(recordingPartial_, error);
+            published = std::filesystem::exists(recordingTarget_);
         } else {
             std::filesystem::remove(recordingTarget_, error);
             error.clear();
@@ -1152,13 +1155,18 @@ void MediaEngine::publishFinishedFile(HRESULT finalizeResult) {
             if (error) {
                 Logger::instance().write(L"ERROR", L"Could not publish recording, error " +
                     std::to_wstring(error.value()));
-            } else if (!finalized) {
+            } else {
+                published = std::filesystem::exists(recordingTarget_);
+            }
+            if (published && !finalized) {
                 Logger::instance().write(L"WARN", L"Published recording without a clean finalize");
             }
         }
     } else if (encodedFrames_.load() == 0) {
         Logger::instance().write(L"ERROR", L"No video frames were encoded");
-        std::filesystem::remove(recordingPartial_, error);
+        if (std::filesystem::exists(recordingPartial_, error)) {
+            Logger::instance().write(L"WARN", L"Recording kept as partial file: " + recordingPartial_.wstring());
+        }
     }
     std::filesystem::remove(audioRawPath_, error);
     audioRawPath_.clear();
@@ -1167,6 +1175,8 @@ void MediaEngine::publishFinishedFile(HRESULT finalizeResult) {
             std::to_wstring(encodedFrames_.load()));
         publish(L"Ready");
     }
+    if (published || std::filesystem::exists(recordingTarget_, error)) return S_OK;
+    return finalized ? E_FAIL : finalizeResult;
 }
 
 HRESULT MediaEngine::writeAudio(std::span<const std::byte> pcm, int64_t timestamp100ns) {
