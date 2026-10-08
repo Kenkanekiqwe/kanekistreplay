@@ -29,39 +29,66 @@ HRESULT setSize(T* attributes, REFGUID key, uint32_t width, uint32_t height) {
 
 void scaleBilinear(const uint8_t* source, uint32_t srcW, uint32_t srcH, uint32_t srcPitch,
                    uint8_t* destination, uint32_t dstW, uint32_t dstH) {
+    if (!source || !destination || !srcW || !srcH || !dstW || !dstH) return;
+
+    // Preserve the source aspect ratio. When the requested recording
+    // resolution has a different aspect ratio, crop the center rather than
+    // stretching the image (e.g. 16:10 -> 16:9).
+    uint32_t cropW = srcW;
+    uint32_t cropH = srcH;
+    const double srcAspect = static_cast<double>(srcW) / static_cast<double>(srcH);
+    const double dstAspect = static_cast<double>(dstW) / static_cast<double>(dstH);
+    if (srcAspect > dstAspect) {
+        cropW = static_cast<uint32_t>(std::floor(static_cast<double>(srcH) * dstAspect));
+        cropW = std::clamp(cropW & ~1u, 2u, srcW);
+    } else if (srcAspect < dstAspect) {
+        cropH = static_cast<uint32_t>(std::floor(static_cast<double>(srcW) / dstAspect));
+        cropH = std::clamp(cropH & ~1u, 2u, srcH);
+    }
+    const uint32_t cropX = (srcW - cropW) / 2;
+    const uint32_t cropY = (srcH - cropH) / 2;
     const uint32_t dstPitch = dstW * 4;
-    if (srcW == dstW && srcH == dstH) {
+
+    if (cropW == dstW && cropH == dstH) {
         for (uint32_t y = 0; y < dstH; ++y) {
             std::memcpy(destination + static_cast<size_t>(y) * dstPitch,
-                source + static_cast<size_t>(y) * srcPitch, dstPitch);
+                source + static_cast<size_t>(cropY + y) * srcPitch +
+                    static_cast<size_t>(cropX) * 4, dstPitch);
         }
         return;
     }
-    const float xScale = srcW <= 1 || dstW <= 1 ? 0.0f :
-        static_cast<float>(srcW - 1) / static_cast<float>(dstW - 1);
-    const float yScale = srcH <= 1 || dstH <= 1 ? 0.0f :
-        static_cast<float>(srcH - 1) / static_cast<float>(dstH - 1);
+
+    const float xScale = cropW <= 1 || dstW <= 1 ? 0.0f :
+        static_cast<float>(cropW - 1) / static_cast<float>(dstW - 1);
+    const float yScale = cropH <= 1 || dstH <= 1 ? 0.0f :
+        static_cast<float>(cropH - 1) / static_cast<float>(dstH - 1);
+
     for (uint32_t y = 0; y < dstH; ++y) {
         const float fy = static_cast<float>(y) * yScale;
         const uint32_t y0 = static_cast<uint32_t>(fy);
-        const uint32_t y1 = std::min(y0 + 1, srcH - 1);
+        const uint32_t y1 = std::min(y0 + 1, cropH - 1);
         const float wy = fy - static_cast<float>(y0);
-        const auto* row0 = source + static_cast<size_t>(y0) * srcPitch;
-        const auto* row1 = source + static_cast<size_t>(y1) * srcPitch;
+        const auto* row0 = source + static_cast<size_t>(cropY + y0) * srcPitch +
+            static_cast<size_t>(cropX) * 4;
+        const auto* row1 = source + static_cast<size_t>(cropY + y1) * srcPitch +
+            static_cast<size_t>(cropX) * 4;
         auto* dstRow = destination + static_cast<size_t>(y) * dstPitch;
         for (uint32_t x = 0; x < dstW; ++x) {
             const float fx = static_cast<float>(x) * xScale;
             const uint32_t x0 = static_cast<uint32_t>(fx);
-            const uint32_t x1 = std::min(x0 + 1, srcW - 1);
+            const uint32_t x1 = std::min(x0 + 1, cropW - 1);
             const float wx = fx - static_cast<float>(x0);
             const auto* p00 = row0 + static_cast<size_t>(x0) * 4;
             const auto* p10 = row0 + static_cast<size_t>(x1) * 4;
             const auto* p01 = row1 + static_cast<size_t>(x0) * 4;
             const auto* p11 = row1 + static_cast<size_t>(x1) * 4;
             for (int c = 0; c < 4; ++c) {
-                const float top = static_cast<float>(p00[c]) + (static_cast<float>(p10[c]) - static_cast<float>(p00[c])) * wx;
-                const float bottom = static_cast<float>(p01[c]) + (static_cast<float>(p11[c]) - static_cast<float>(p01[c])) * wx;
-                dstRow[x * 4 + c] = static_cast<uint8_t>(top + (bottom - top) * wy + 0.5f);
+                const float top = static_cast<float>(p00[c]) +
+                    (static_cast<float>(p10[c]) - static_cast<float>(p00[c])) * wx;
+                const float bottom = static_cast<float>(p01[c]) +
+                    (static_cast<float>(p11[c]) - static_cast<float>(p01[c])) * wx;
+                dstRow[x * 4 + c] = static_cast<uint8_t>(
+                    top + (bottom - top) * wy + 0.5f);
             }
         }
     }
