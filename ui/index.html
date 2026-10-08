@@ -85,6 +85,21 @@
   .rec-title b { display: block; font: 600 28px/1.1 "Segoe UI Variable Display", "Segoe UI", sans-serif; margin-bottom: 6px; }
   .rec-title span { color: var(--muted); }
   .quick { display: flex; gap: 8px; }
+  .recordbar {
+    width: min(760px, 100%); display: grid; grid-template-columns: auto 1fr repeat(4, minmax(78px, 1fr));
+    gap: 6px; padding: 8px; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 10px; box-shadow: 0 8px 30px rgba(0,0,0,.16);
+  }
+  .recordbar .rb {
+    min-height: 42px; padding: 5px 10px; border-radius: 7px; background: var(--lift);
+    display: flex; flex-direction: column; justify-content: center;
+  }
+  .recordbar .rb span { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .06em; }
+  .recordbar .rb b { margin-top: 2px; font: 600 13px/1 "Segoe UI Variable Display", "Segoe UI", sans-serif; }
+  .recordbar .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); display: inline-block; margin-right: 6px; }
+  .recordbar.live .dot { background: var(--danger); box-shadow: 0 0 12px rgba(255,92,106,.7); }
+  .recordbar.live .rb:first-child b { color: var(--danger); }
+  .recordbar.live #recordState { color: var(--danger); }
   .stats { display: grid; grid-template-columns: repeat(3, 120px); gap: 8px; }
   .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; text-align: center; }
   .stat span { color: var(--muted); font-size: 11px; }
@@ -182,6 +197,14 @@
             <button class="ghost" id="replayBtn">Сохранить повтор</button>
             <button class="ghost" id="shotBtn">Скриншот</button>
           </div>
+          <div class="recordbar" id="recordBar">
+            <div class="rb"><b><i class="dot"></i><span id="recordState">READY</span></b></div>
+            <div class="rb"><span>Время</span><b id="recordTime">00:00:00</b></div>
+            <div class="rb"><span>FPS</span><b id="barFps">0</b></div>
+            <div class="rb"><span>GPU</span><b id="barGpu">0%</b></div>
+            <div class="rb"><span>CPU</span><b id="barCpu">0%</b></div>
+            <div class="rb"><span>DROP</span><b id="barDrop">0</b></div>
+          </div>
           <div class="stats">
             <div class="stat"><span>FPS</span><b id="fpsVal">0</b></div>
             <div class="stat"><span>Профиль</span><b id="qualityVal">1080p</b></div>
@@ -253,6 +276,8 @@
   })();
   const qualityNames = ["720p", "1080p", "1440p", "4K", "Экран"];
   let capturing = 0;
+  let recordStartedAt = 0;
+  let recordTimer = 0;
   const host = () => window.chrome && chrome.webview;
   const post = (p) => { if (host()) host().postMessage(p); };
   const $ = (id) => document.getElementById(id);
@@ -266,6 +291,12 @@
     $("overlayKey").textContent = s.overlayHotkey || "Alt+K";
     $("statusText").textContent = s.status || "";
     $("statusPill").classList.toggle("rec", !!s.recording);
+    $("recordBar").classList.toggle("live", !!s.recording);
+    $("recordState").textContent = s.recording ? "REC" : (s.saving ? "SAVING" : "READY");
+    $("barFps").textContent = Math.round(s.fps || 0);
+    $("barGpu").textContent = Math.max(0, Math.round(s.gpu || 0)) + "%";
+    $("barCpu").textContent = Math.max(0, Math.round(s.cpu || 0)) + "%";
+    $("barDrop").textContent = s.dropped || 0;
     $("fpsVal").textContent = Math.round(s.fps || 0);
     $("qualityVal").textContent = s.qualityLabel || qualityNames[s.res || 0];
     $("replayVal").textContent = s.replay ? "вкл" : "выкл";
@@ -273,6 +304,8 @@
     rec.disabled = !!s.saving || !!s.starting;
     rec.innerHTML = s.saving ? "Сохраняю" : (s.starting ? "Запуск" : (s.recording ? "Стоп" : "Начать<br>запись"));
     $("recPad").classList.toggle("live", !!s.recording);
+    if (s.recording && !recordStartedAt) recordStartedAt = Date.now();
+    if (!s.recording && recordStartedAt) recordStartedAt = 0;
     $("recordHint").textContent = s.recording ? "Идёт запись" : "Готов к записи";
     $("replayBtn").disabled = !!s.saving;
     $("replay").checked = !!s.replay; $("mic").checked = !!s.mic;
@@ -292,6 +325,19 @@
     });
     if (s.library) renderLibrary(s.library);
   }
+  function updateRecordTimer() {
+    if (!recordStartedAt) {
+      $("recordTime").textContent = "00:00:00";
+      return;
+    }
+    const total = Math.max(0, Math.floor((Date.now() - recordStartedAt) / 1000));
+    const h = String(Math.floor(total / 3600)).padStart(2, "0");
+    const m = String(Math.floor((total % 3600) / 60)).padStart(2, "0");
+    const s = String(total % 60).padStart(2, "0");
+    $("recordTime").textContent = h + ":" + m + ":" + s;
+  }
+  setInterval(updateRecordTimer, 250);
+
   function fillDevices(select, devices, selected) {
     if (!select || !devices) return;
     const current = selected || "";

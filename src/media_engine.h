@@ -66,6 +66,7 @@ private:
     struct EncodeSession {
         Microsoft::WRL::ComPtr<IMFSinkWriter> writer;
         DWORD videoStream{};
+        bool gpuInput{};
     };
 
     HRESULT createSinkWriter(const std::filesystem::path& target);
@@ -80,6 +81,7 @@ private:
     void composeCursor(uint8_t* dest, uint32_t width, uint32_t height, uint32_t pitch) const;
     struct QueuedFrame {
         std::vector<uint8_t> pixels;
+        Microsoft::WRL::ComPtr<ID3D11Texture2D> texture;
         int64_t timestamp100ns{};
     };
     HRESULT writeQueuedFrame(const std::shared_ptr<EncodeSession>& session,

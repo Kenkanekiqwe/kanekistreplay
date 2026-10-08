@@ -1,0 +1,74 @@
+name: KanekistReplay Windows Build
+
+on:
+  push:
+    branches: [ main, gpu-recorder-overhaul ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    name: Build Windows x64
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Configure
+        shell: pwsh
+        run: cmake -S . -B build -A x64 -DBUILD_TESTING=ON
+
+      - name: Build Release
+        shell: pwsh
+        run: cmake --build build --config Release --parallel
+
+      - name: Run tests
+        shell: pwsh
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Verify package
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $out = "build/Release"
+          if (!(Test-Path "$out/KanekistReplay.exe")) { throw "KanekistReplay.exe was not produced." }
+          if (!(Test-Path "$out/PresentMon.exe")) { throw "PresentMon.exe was not copied to the build output." }
+          Get-ChildItem $out | Select-Object Name, Length
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $out = "build/Release"
+          $stage = "package/KanekistReplay"
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Copy-Item "$out/*" $stage -Recurse -Force
+          if (!(Test-Path "$stage/KanekistReplay.exe")) { throw "Executable missing from package." }
+          New-Item -ItemType Directory -Force -Path "artifacts" | Out-Null
+          Compress-Archive -Path "$stage/*" -DestinationPath "artifacts/KanekistReplay-Windows-x64.zip" -CompressionLevel Optimal -Force
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: KanekistReplay-Windows-x64
+          path: artifacts/KanekistReplay-Windows-x64.zip
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload raw Release folder
+        uses: actions/upload-artifact@v4
+        with:
+          name: KanekistReplay-Release-Folder
+          path: build/Release/
+          if-no-files-found: error
+          retention-days: 14
