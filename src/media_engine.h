@@ -37,7 +37,7 @@ public:
     void configureAudio(const WAVEFORMATEX& format);
     HRESULT writeAudio(std::span<const std::byte> pcm, int64_t timestamp100ns);
     HRESULT startRecording(const std::filesystem::path& target);
-    void stopRecording();
+    HRESULT stopRecording();
     void setQuietIo(bool quiet) noexcept { quietIo_ = quiet; }
     HRESULT takeScreenshot(const std::filesystem::path& target);
     void startPreview();
@@ -89,7 +89,7 @@ private:
     void encoderLoop();
     void finishFile(const std::shared_ptr<EncodeSession>& session, uint64_t generation);
     void abandonEncoderLocked();
-    void publishFinishedFile(HRESULT finalizeResult);
+    HRESULT publishFinishedFile(HRESULT finalizeResult);
     void captureLoop();
     void publish(std::wstring_view text);
 
