@@ -160,6 +160,8 @@
   }
   .field { margin-top: 12px; }
   .field span { color: var(--muted); font-size: 12px; }
+  .section-title { font: 600 15px/1.2 "Segoe UI Variable Display", "Segoe UI", sans-serif; margin-bottom: 6px; }
+  .hint2 { margin-top: 10px; color: var(--muted); font-size: 11px; line-height: 1.45; }
 </style>
 </head>
 <body>
@@ -215,28 +217,41 @@
       <div class="page" id="page-settings">
         <div class="row2">
           <div class="card">
+            <div class="section-title">Параметры записи</div>
             <div class="line"><span>Instant Replay</span><label class="sw"><input id="replay" type="checkbox"><i></i></label></div>
             <div class="line"><span>Микрофон</span><label class="sw"><input id="mic" type="checkbox"><i></i></label></div>
             <div class="line"><span>Звук компьютера</span><label class="sw"><input id="sysAudio" type="checkbox"><i></i></label></div>
             <div class="line"><span>FPS HUD</span><label class="sw"><input id="hud" type="checkbox"><i></i></label></div>
             <div class="line"><span>Старт в трее</span><label class="sw"><input id="tray" type="checkbox"><i></i></label></div>
-            <div class="seg" id="resolution">
-              <button data-res="0">720p</button>
-              <button data-res="1">1080p</button>
-              <button data-res="2">1440p</button>
-              <button data-res="3">4K</button>
-              <button data-res="4">Экран</button>
+
+            <div class="field"><span>Разрешение видео</span>
+              <div class="seg" id="resolution">
+                <button data-res="0">720p</button>
+                <button data-res="1">1080p</button>
+                <button data-res="2">1440p</button>
+                <button data-res="3">4K</button>
+                <button data-res="4">Экран</button>
+              </div>
             </div>
-            <div class="seg" id="encodeFps">
-              <button data-fps="30">30 FPS</button>
-              <button data-fps="60">60 FPS</button>
-              <button data-fps="120">120 FPS</button>
+            <div class="field"><span>Частота кадров</span>
+              <div class="seg" id="encodeFps">
+                <button data-fps="30">30 FPS</button>
+                <button data-fps="60">60 FPS</button>
+                <button data-fps="120">120 FPS</button>
+              </div>
             </div>
-            <div class="seg" id="codec">
-              <button data-codec="0">H.264</button>
-              <button data-codec="1">HEVC</button>
-              <button data-codec="2">AV1</button>
+            <div class="field"><span>Кодек</span>
+              <div class="seg" id="codec">
+                <button data-codec="0">H.264</button>
+                <button data-codec="1">HEVC</button>
+                <button data-codec="2">AV1</button>
+              </div>
             </div>
+            <div class="sld">
+              <label>Битрейт <b id="bitrateVal">60 Мбит/с</b></label>
+              <input id="bitrate" type="range" min="8" max="150" step="1" value="60">
+            </div>
+            <div class="hint2">Разрешение можно ставить выше разрешения монитора — кодировщик выполнит масштабирование.</div>
           </div>
           <div class="card">
             <div class="sld"><label>Игра <b id="sysVal">100%</b></label><input id="sys" type="range" min="0" max="200" value="100"></div>
@@ -317,6 +332,8 @@
     fillDevices($("micDevice"), s.micDevices, s.micDevice);
     fillDevices($("sysDevice"), s.sysDevices, s.sysDevice);
     $("sys").value = s.systemVolume; $("sysVal").textContent = s.systemVolume + "%";
+    $("bitrate").value = Math.max(8, Math.min(150, Number(s.bitrateMbps || 60)));
+    $("bitrateVal").textContent = Math.round(s.bitrateMbps || 60) + " Мбит/с";
     $("micVol").value = s.micVolume; $("micVal").textContent = s.micVolume + "%";
     $("gate").value = s.noiseGate; $("gateVal").textContent = s.noiseGate ? s.noiseGate : "выкл";
     document.querySelectorAll("[data-hot]").forEach((b, i) => {
@@ -398,6 +415,11 @@
   $("sysDevice").onchange = e => post({cmd:"setSysDevice", id: e.target.value});
   const slide = (id, key) => { $(id).oninput = () => post({cmd:"setSlider", id: key, value: Number($(id).value)}); $(id).onchange = () => post({cmd:"persist"}); };
   slide("sys","system"); slide("micVol","mic"); slide("gate","gate");
+  $("bitrate").oninput = () => {
+    $("bitrateVal").textContent = Number($("bitrate").value) + " Мбит/с";
+    post({cmd:"setBitrate", bitrate: Number($("bitrate").value)});
+  };
+  $("bitrate").onchange = () => post({cmd:"persist"});
   document.querySelectorAll("[data-hot]").forEach(b => b.onclick = () => post({cmd:"captureHotkey", id: Number(b.dataset.hot)}));
   window.addEventListener("keydown", e => {
     if (!capturing) return;
