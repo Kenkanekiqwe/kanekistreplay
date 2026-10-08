@@ -450,14 +450,14 @@ HRESULT MediaEngine::createSinkWriter(const std::filesystem::path& target) {
     } else if (settings_.videoCodec == 1) {
         codecs.push_back({MFVideoFormat_HEVC, 1, L"HEVC", true});
     }
-    codecs.push_back({MFVideoFormat_H264, 0, L"H.264", false});
+    codecs.push_back({MFVideoFormat_H264, 0, L"H.264", true});
 
     const uint32_t sizes[][2] = {
         {settings_.width, settings_.height},
         {1920, 1080},
         {1280, 720}
     };
-    const uint32_t fpsList[] = { std::min(settings_.fps, 60u), 30u };
+    const uint32_t fpsList[] = { settings_.fps, 60u, 30u };
     HRESULT lastError = E_FAIL;
 
     auto trySession = [&](const GUID& subtype, BOOL hardware, uint32_t width, uint32_t height,
