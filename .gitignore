@@ -1,0 +1,9 @@
+/build/
+/.vs/
+/.qt/
+/out/
+*.user
+*.suo
+startup.trace
+
+tools/ffmpeg-release-essentials.zip

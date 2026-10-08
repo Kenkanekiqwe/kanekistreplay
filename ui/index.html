@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Kanekist</title>
+<style>
+  :root {
+    --bg: #08090a;
+    --rail: #0f1011;
+    --panel: #18191a;
+    --lift: #1e1f21;
+    --line: rgba(255,255,255,.06);
+    --text: #f7f8f8;
+    --muted: #8a8f98;
+    --accent: #5ee9a3;
+    --danger: #ff5c6a;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font: 13px/1.4 "Segoe UI Variable Text", "Segoe UI", sans-serif;
+    letter-spacing: -.01em; user-select: none;
+  }
+  button, input { font: inherit; color: inherit; }
+  #app { height: 100%; display: grid; grid-template-columns: 228px 1fr; }
+  .rail {
+    background: var(--rail); border-right: 1px solid var(--line);
+    padding: 20px 12px; display: flex; flex-direction: column; gap: 20px;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px; }
+  .mark { width: 22px; height: 22px; border-radius: 6px; background: var(--accent); }
+  .brand b { font: 600 15px/1 "Segoe UI Variable Display", "Segoe UI", sans-serif; letter-spacing: -.03em; }
+  .nav { display: flex; flex-direction: column; gap: 4px; }
+  .nav button {
+    border: 0; background: transparent; color: var(--muted); text-align: left;
+    padding: 8px 12px; border-radius: 6px; cursor: pointer;
+  }
+  .nav button:hover { background: rgba(255,255,255,.04); color: var(--text); }
+  .nav button.on { background: rgba(255,255,255,.07); color: var(--text); }
+  .hint { margin-top: auto; color: var(--muted); font-size: 12px; padding: 0 8px; }
+  .k { display: inline-block; padding: 1px 6px; border: 1px solid var(--line); border-radius: 4px; background: var(--lift); font-size: 11px; }
+  .main { min-width: 0; display: flex; flex-direction: column; }
+  .bar {
+    height: 52px; display: flex; align-items: center; justify-content: space-between;
+    padding: 0 24px; border-bottom: 1px solid var(--line);
+  }
+  .bar h1 { margin: 0; font: 510 14px/1 "Segoe UI Variable Display", "Segoe UI", sans-serif; }
+  .live { display: flex; align-items: center; color: var(--muted); }
+  .live.rec { color: var(--danger); }
+  .wrap { flex: 1; overflow: auto; padding: 20px 24px 24px; }
+  .page { display: none; height: 100%; }
+  .page.on { display: block; }
+  .studio {
+    min-height: calc(100% - 8px); display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 28px;
+  }
+  .pad {
+    position: relative; width: 380px; height: 380px; display: grid; place-items: center;
+  }
+  .waves { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+  .ripple {
+    fill: none; stroke: rgba(255, 92, 106, .85); stroke-width: 1.8;
+    transform-box: view-box; transform-origin: 50% 50%; opacity: 0;
+  }
+  .pad.live .ripple { animation: ripple 2.2s cubic-bezier(.16, .72, .28, 1) infinite; }
+  .pad.live .ripple:nth-child(2) { animation-delay: .7s; }
+  .pad.live .ripple:nth-child(3) { animation-delay: 1.4s; }
+  @keyframes ripple {
+    0% { transform: scale(.96) rotate(0deg); opacity: .8; }
+    45% { transform: scale(1.62) rotate(10deg); opacity: .32; }
+    100% { transform: scale(2.28) rotate(22deg); opacity: 0; }
+  }
+  .rec-btn {
+    position: relative; z-index: 1; width: 148px; height: 148px; border-radius: 50%;
+    border: 0; cursor: pointer; font: 650 15px/1.15 "Segoe UI Variable Display", "Segoe UI", sans-serif;
+    background: radial-gradient(circle at 50% 36%, #8ff0bc, var(--accent) 58%, #2f9a63);
+    color: #07140d; box-shadow: 0 0 0 10px rgba(94,233,163,.08);
+  }
+  .pad.live .rec-btn {
+    background: radial-gradient(circle at 50% 36%, #ff8b95, var(--danger) 58%, #b21d2c);
+    color: #fff; box-shadow: 0 0 0 10px rgba(255,92,106,.12);
+  }
+  .rec-btn:disabled { opacity: .55; cursor: default; }
+  .rec-title { text-align: center; }
+  .rec-title b { display: block; font: 600 28px/1.1 "Segoe UI Variable Display", "Segoe UI", sans-serif; margin-bottom: 6px; }
+  .rec-title span { color: var(--muted); }
+  .quick { display: flex; gap: 8px; }
+  .stats { display: grid; grid-template-columns: repeat(3, 120px); gap: 8px; }
+  .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; text-align: center; }
+  .stat span { color: var(--muted); font-size: 11px; }
+  .stat b { display: block; margin-top: 6px; font: 600 20px/1 "Segoe UI Variable Display", "Segoe UI", sans-serif; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .line { display: flex; align-items: center; justify-content: space-between; padding: 9px 0; }
+  .line + .line { border-top: 1px solid var(--line); }
+  .sw { width: 36px; height: 20px; position: relative; flex: none; }
+  .sw input { display: none; }
+  .sw i { position: absolute; inset: 0; border-radius: 99px; background: #2a2d31; }
+  .sw i::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: .15s; }
+  .sw input:checked + i { background: var(--accent); }
+  .sw input:checked + i::after { transform: translateX(16px); }
+  .seg { display: flex; flex-wrap: wrap; gap: 4px; background: var(--lift); padding: 3px; border-radius: 8px; margin-top: 12px; }
+  .seg button { flex: 1; min-width: 64px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; }
+  .seg button.on { background: #2a2c30; color: var(--text); }
+  .sld label { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; margin: 10px 0 6px; }
+  input[type=range] { width: 100%; appearance: none; height: 3px; background: #2c2f33; border-radius: 99px; outline: none; }
+  input[type=range]::-webkit-slider-thumb { appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #fff; }
+  .keys { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+  .key span { display: block; color: var(--muted); font-size: 11px; margin-bottom: 5px; }
+  .key button {
+    width: 100%; height: 32px; border-radius: 6px; border: 1px solid var(--line);
+    background: var(--lift); cursor: pointer; font-family: Consolas, "Cascadia Mono", monospace; font-size: 12px;
+  }
+  .key button.wait { color: var(--accent); border-color: rgba(94,233,163,.35); }
+  .ghost { height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); cursor: pointer; }
+  .libtop { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; color: var(--muted); }
+  .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+  .clip {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .thumb {
+    height: 124px; background: #121314 center/cover no-repeat;
+    position: relative;
+  }
+  .thumb.empty { background: linear-gradient(180deg, #1a1c1e, #121314); }
+  .thumb .dur {
+    position: absolute; right: 8px; bottom: 8px; padding: 2px 6px; border-radius: 4px;
+    background: rgba(0,0,0,.7); font-size: 11px;
+  }
+  .clip-meta { padding: 10px 12px 8px; }
+  .clip-meta b { display: block; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .clip-meta span { color: var(--muted); font-size: 11px; }
+  .clip-actions { display: flex; gap: 4px; padding: 0 8px 10px; }
+  .clip-actions button {
+    flex: 1; height: 26px; border: 0; border-radius: 6px; background: var(--lift);
+    color: var(--muted); cursor: pointer; font-size: 11px;
+  }
+  .clip-actions button:hover { color: var(--text); background: #2a2c30; }
+  .clip-actions button.danger:hover { color: var(--danger); }
+  .empty { padding: 40px; text-align: center; color: var(--muted); grid-column: 1 / -1; }
+  select.pick {
+    width: 100%; height: 32px; border-radius: 6px; border: 1px solid var(--line);
+    background: var(--lift); color: inherit; outline: none; margin-top: 6px;
+  }
+  .field { margin-top: 12px; }
+  .field span { color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <aside class="rail">
+    <div class="brand"><div class="mark"></div><b>Kanekist</b></div>
+    <nav class="nav">
+      <button class="on" data-page="record">Запись</button>
+      <button data-page="settings">Настройки</button>
+      <button data-page="library">Библиотека</button>
+    </nav>
+    <div class="hint">Оверлей <span class="k" id="overlayKey">Alt+K</span></div>
+  </aside>
+  <section class="main">
+    <header class="bar">
+      <h1 id="pageTitle">Запись</h1>
+      <div class="live" id="statusPill"><span id="statusText">Загрузка</span></div>
+    </header>
+    <div class="wrap">
+      <div class="page on" id="page-record">
+        <div class="studio">
+          <div class="rec-title">
+            <b id="recordHint">Готов к записи</b>
+            <span>Рабочий стол · без инъекции в игру</span>
+          </div>
+          <div class="pad" id="recPad">
+            <svg class="waves" viewBox="0 0 200 200" aria-hidden="true">
+              <path class="ripple"></path>
+              <path class="ripple"></path>
+              <path class="ripple"></path>
+            </svg>
+            <button class="rec-btn" id="recordBtn">Начать<br>запись</button>
+          </div>
+          <div class="quick">
+            <button class="ghost" id="replayBtn">Сохранить повтор</button>
+            <button class="ghost" id="shotBtn">Скриншот</button>
+          </div>
+          <div class="stats">
+            <div class="stat"><span>FPS</span><b id="fpsVal">0</b></div>
+            <div class="stat"><span>Профиль</span><b id="qualityVal">1080p</b></div>
+            <div class="stat"><span>Replay</span><b id="replayVal">выкл</b></div>
+          </div>
+        </div>
+      </div>
+      <div class="page" id="page-settings">
+        <div class="row2">
+          <div class="card">
+            <div class="line"><span>Instant Replay</span><label class="sw"><input id="replay" type="checkbox"><i></i></label></div>
+            <div class="line"><span>Микрофон</span><label class="sw"><input id="mic" type="checkbox"><i></i></label></div>
+            <div class="line"><span>Звук компьютера</span><label class="sw"><input id="sysAudio" type="checkbox"><i></i></label></div>
+            <div class="line"><span>FPS HUD</span><label class="sw"><input id="hud" type="checkbox"><i></i></label></div>
+            <div class="line"><span>Старт в трее</span><label class="sw"><input id="tray" type="checkbox"><i></i></label></div>
+            <div class="seg" id="resolution">
+              <button data-res="0">720p</button>
+              <button data-res="1">1080p</button>
+              <button data-res="2">1440p</button>
+              <button data-res="3">4K</button>
+              <button data-res="4">Экран</button>
+            </div>
+            <div class="seg" id="encodeFps">
+              <button data-fps="30">30 FPS</button>
+              <button data-fps="60">60 FPS</button>
+              <button data-fps="120">120 FPS</button>
+            </div>
+            <div class="seg" id="codec">
+              <button data-codec="0">H.264</button>
+              <button data-codec="1">HEVC</button>
+              <button data-codec="2">AV1</button>
+            </div>
+          </div>
+          <div class="card">
+            <div class="sld"><label>Игра <b id="sysVal">100%</b></label><input id="sys" type="range" min="0" max="200" value="100"></div>
+            <div class="sld"><label>Микрофон <b id="micVal">100%</b></label><input id="micVol" type="range" min="0" max="200" value="100"></div>
+            <div class="sld"><label>Шумодав <b id="gateVal">выкл</b></label><input id="gate" type="range" min="0" max="40" value="0"></div>
+            <div class="field"><span>Устройство микрофона</span><select class="pick" id="micDevice"></select></div>
+            <div class="field"><span>Устройство звука компьютера</span><select class="pick" id="sysDevice"></select></div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:12px">
+          <div class="keys">
+            <div class="key"><span>Запись</span><button data-hot="1"></button></div>
+            <div class="key"><span>Сохранить повтор</span><button data-hot="2"></button></div>
+            <div class="key"><span>Скриншот</span><button data-hot="3"></button></div>
+            <div class="key"><span>FPS HUD</span><button data-hot="4"></button></div>
+            <div class="key"><span>Меню оверлея</span><button data-hot="5"></button></div>
+          </div>
+        </div>
+      </div>
+      <div class="page" id="page-library">
+        <div class="libtop"><span id="libCount">Пока пусто</span><button class="ghost" id="folderBtn">Папка</button></div>
+        <div class="gallery" id="files"></div>
+      </div>
+    </div>
+  </section>
+</div>
+<script>
+  (function () {
+    const steps = 80, r = 47, amp = 8, lobes = 8, cx = 100, cy = 100;
+    let d = "";
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps * Math.PI * 2;
+      const rr = r + amp * Math.sin(t * lobes);
+      d += (i ? "L" : "M") + (cx + rr * Math.cos(t)).toFixed(2) + "," + (cy + rr * Math.sin(t)).toFixed(2);
+    }
+    document.querySelectorAll(".ripple").forEach(p => p.setAttribute("d", d + "Z"));
+  })();
+  const qualityNames = ["720p", "1080p", "1440p", "4K", "Экран"];
+  let capturing = 0;
+  const host = () => window.chrome && chrome.webview;
+  const post = (p) => { if (host()) host().postMessage(p); };
+  const $ = (id) => document.getElementById(id);
+  document.querySelectorAll(".nav button").forEach(btn => btn.onclick = () => {
+    document.querySelectorAll(".nav button").forEach(x => x.classList.toggle("on", x === btn));
+    document.querySelectorAll(".page").forEach(p => p.classList.toggle("on", p.id === "page-" + btn.dataset.page));
+    $("pageTitle").textContent = btn.textContent;
+  });
+  function apply(s) {
+    capturing = s.capturingHotkey || 0;
+    $("overlayKey").textContent = s.overlayHotkey || "Alt+K";
+    $("statusText").textContent = s.status || "";
+    $("statusPill").classList.toggle("rec", !!s.recording);
+    $("fpsVal").textContent = Math.round(s.fps || 0);
+    $("qualityVal").textContent = s.qualityLabel || qualityNames[s.res || 0];
+    $("replayVal").textContent = s.replay ? "вкл" : "выкл";
+    const rec = $("recordBtn");
+    rec.disabled = !!s.saving || !!s.starting;
+    rec.innerHTML = s.saving ? "Сохраняю" : (s.starting ? "Запуск" : (s.recording ? "Стоп" : "Начать<br>запись"));
+    $("recPad").classList.toggle("live", !!s.recording);
+    $("recordHint").textContent = s.recording ? "Идёт запись" : "Готов к записи";
+    $("replayBtn").disabled = !!s.saving;
+    $("replay").checked = !!s.replay; $("mic").checked = !!s.mic;
+    $("sysAudio").checked = s.sysAudio !== false;
+    $("hud").checked = !!s.hud; $("tray").checked = !!s.trayStart;
+    document.querySelectorAll("#resolution button").forEach(b => b.classList.toggle("on", Number(b.dataset.res) === (s.res ?? s.quality ?? 0)));
+    document.querySelectorAll("#encodeFps button").forEach(b => b.classList.toggle("on", Number(b.dataset.fps) === (s.encodeFps || 60)));
+    document.querySelectorAll("#codec button").forEach(b => b.classList.toggle("on", Number(b.dataset.codec) === (s.codec || 0)));
+    fillDevices($("micDevice"), s.micDevices, s.micDevice);
+    fillDevices($("sysDevice"), s.sysDevices, s.sysDevice);
+    $("sys").value = s.systemVolume; $("sysVal").textContent = s.systemVolume + "%";
+    $("micVol").value = s.micVolume; $("micVal").textContent = s.micVolume + "%";
+    $("gate").value = s.noiseGate; $("gateVal").textContent = s.noiseGate ? s.noiseGate : "выкл";
+    document.querySelectorAll("[data-hot]").forEach((b, i) => {
+      b.textContent = capturing === i + 1 ? "нажмите клавиши" : ((s.hotkeys && s.hotkeys[i]) || "");
+      b.classList.toggle("wait", capturing === i + 1);
+    });
+    if (s.library) renderLibrary(s.library);
+  }
+  function fillDevices(select, devices, selected) {
+    if (!select || !devices) return;
+    const current = selected || "";
+    const html = devices.map(d => `<option value="${String(d.id || "").replace(/"/g, "&quot;")}">${d.name}</option>`).join("");
+    if (select.dataset.html !== html) {
+      select.dataset.html = html;
+      select.innerHTML = html;
+    }
+    select.value = current;
+  }
+  function renderLibrary(items) {
+    const root = $("files");
+    $("libCount").textContent = items.length ? (items.length + " файлов") : "Пока пусто";
+    if (!items.length) { root.innerHTML = '<div class="empty">Записей пока нет</div>'; return; }
+    root.innerHTML = items.map(it => {
+      const thumb = it.thumb
+        ? `<div class="thumb" style="background-image:url('${it.thumb}')">${it.duration ? `<span class="dur">${it.duration}</span>` : ""}</div>`
+        : `<div class="thumb empty">${it.duration ? `<span class="dur">${it.duration}</span>` : ""}</div>`;
+      const meta = [it.duration, it.size, it.modified].filter(Boolean).join(" · ");
+      return `<div class="clip" data-name="${it.name}">${thumb}<div class="clip-meta"><b title="${it.name}">${it.name}</b><span>${meta}</span></div>
+        <div class="clip-actions">
+          <button data-act="open">Открыть</button>
+          <button data-act="rename">Имя</button>
+          <button data-act="copy">Путь</button>
+          <button class="danger" data-act="delete">Удалить</button>
+        </div></div>`;
+    }).join("");
+    root.querySelectorAll(".clip").forEach(card => {
+      const name = card.dataset.name;
+      card.ondblclick = () => post({cmd:"openMedia", name});
+      card.querySelectorAll("[data-act]").forEach(btn => btn.onclick = (e) => {
+        e.stopPropagation();
+        const act = btn.dataset.act;
+        if (act === "open") post({cmd:"openMedia", name});
+        else if (act === "copy") post({cmd:"copyMediaPath", name});
+        else if (act === "delete") {
+          if (confirm("Удалить " + name + "?")) post({cmd:"deleteMedia", name});
+        } else if (act === "rename") {
+          const next = prompt("Новое имя", name);
+          if (next && next !== name) post({cmd:"renameMedia", name, next});
+        }
+      });
+    });
+  }
+  $("recordBtn").onclick = () => post({cmd:"toggleRecord"});
+  $("replayBtn").onclick = () => post({cmd:"saveReplay"});
+  $("shotBtn").onclick = () => post({cmd:"screenshot"});
+  $("folderBtn").onclick = () => post({cmd:"openFolder"});
+  $("replay").onchange = e => post({cmd:"setReplay", on: e.target.checked});
+  $("mic").onchange = e => post({cmd:"setMic", on: e.target.checked});
+  $("sysAudio").onchange = e => post({cmd:"setSysAudio", on: e.target.checked});
+  $("hud").onchange = e => post({cmd:"setHud", on: e.target.checked});
+  $("tray").onchange = e => post({cmd:"setTrayStart", on: e.target.checked});
+  document.querySelectorAll("#resolution button").forEach(b => b.onclick = () => post({cmd:"setResolution", index: Number(b.dataset.res)}));
+  document.querySelectorAll("#encodeFps button").forEach(b => b.onclick = () => post({cmd:"setEncodeFps", fps: Number(b.dataset.fps)}));
+  document.querySelectorAll("#codec button").forEach(b => b.onclick = () => post({cmd:"setCodec", index: Number(b.dataset.codec)}));
+  $("micDevice").onchange = e => post({cmd:"setMicDevice", id: e.target.value});
+  $("sysDevice").onchange = e => post({cmd:"setSysDevice", id: e.target.value});
+  const slide = (id, key) => { $(id).oninput = () => post({cmd:"setSlider", id: key, value: Number($(id).value)}); $(id).onchange = () => post({cmd:"persist"}); };
+  slide("sys","system"); slide("micVol","mic"); slide("gate","gate");
+  document.querySelectorAll("[data-hot]").forEach(b => b.onclick = () => post({cmd:"captureHotkey", id: Number(b.dataset.hot)}));
+  window.addEventListener("keydown", e => {
+    if (!capturing) return;
+    e.preventDefault();
+    if (e.key === "Escape") { post({cmd:"cancelHotkey"}); return; }
+    if (["Control","Shift","Alt","Meta"].includes(e.key)) return;
+    let mods = 0;
+    if (e.ctrlKey) mods |= 1; if (e.shiftKey) mods |= 2; if (e.altKey) mods |= 4; if (e.metaKey) mods |= 8;
+    post({cmd:"hotkey", mods, vk: e.keyCode});
+  });
+  if (host()) host().addEventListener("message", e => apply(e.data));
+  post({cmd:"ready"});
+</script>
+</body>
+</html>
