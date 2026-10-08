@@ -604,8 +604,8 @@ void App::toggleRecording() {
         postUiState();
         saveThread_ = std::jthread([this] {
             ComApartment apartment;
-            engine_.stopRecording();
-            PostMessageW(window_, RecordingSavedMessage, TRUE, FALSE);
+            const HRESULT hr = engine_.stopRecording();
+            PostMessageW(window_, RecordingSavedMessage, SUCCEEDED(hr) ? TRUE : FALSE, hr);
         });
         return;
     }
@@ -1375,7 +1375,12 @@ LRESULT App::dispatch(UINT message, WPARAM wParam, LPARAM lParam) {
         return 0;
     case RecordingSavedMessage:
         saving_ = false;
-        refreshLibrary();
+        if (wParam) {
+            refreshLibrary();
+            overlayMenu_.showToast(L"Запись сохранена");
+        } else {
+            reportFailure(L"Сохранение записи", static_cast<HRESULT>(lParam));
+        }
         postUiState();
         return 0;
     case LibraryPreviewMessage:
