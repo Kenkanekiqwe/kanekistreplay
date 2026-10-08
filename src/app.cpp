@@ -429,6 +429,7 @@ void App::postUiState(bool includeLibrary) {
     json += L",\"quality\":" + std::to_wstring(resolutionPresetIndex(settings_.width, settings_.height));
     json += L",\"res\":" + std::to_wstring(resolutionPresetIndex(settings_.width, settings_.height));
     json += L",\"encodeFps\":" + std::to_wstring(settings_.fps);
+    json += L",\"bitrateMbps\":" + std::to_wstring(settings_.bitrateMbps);
     json += L",\"qualityLabel\":\"" + jsonEscape(encodePresetLabel(settings_.width, settings_.height,
         settings_.fps, settings_.videoCodec)) + L"\"";
     json += L",\"systemVolume\":" + std::to_wstring(settings_.systemVolume);
@@ -478,6 +479,12 @@ void App::handleUiMessage(const std::wstring& json) {
     } else if (cmd == L"setSysDevice") {
         settings_.systemAudioDeviceId = jsonString(json, L"id");
         if (settings_.captureSystemAudio) wireSystemAudio();
+        persistSettings();
+        postUiState();
+    } else if (cmd == L"setBitrate") {
+        settings_.bitrateMbps = std::clamp(
+            static_cast<uint32_t>(std::max(8, jsonInt(json, L"bitrate"))), 8u, 150u);
+        engine_.updateEncodingSettings(settings_);
         persistSettings();
         postUiState();
     } else if (cmd == L"setCodec") {
