@@ -203,8 +203,8 @@ void applyResolutionPreset(Settings& settings, int index, uint32_t nativeWidth, 
     case 4: settings.width = nativeWidth; settings.height = nativeHeight; break;
     default: settings.width = 1920; settings.height = 1080; break;
     }
-    if (settings.width > nativeWidth && nativeWidth >= 1280) settings.width = nativeWidth;
-    if (settings.height > nativeHeight && nativeHeight >= 720) settings.height = nativeHeight;
+    // Encoding resolution is independent from the physical capture resolution.
+    // Higher presets are valid: the GPU scaler/encoder can upscale the captured frame.
     settings.width &= ~1u;
     settings.height &= ~1u;
     settings.bitrateMbps = suggestedBitrateMbps(settings.width, settings.height, settings.fps, settings.videoCodec);
@@ -269,12 +269,24 @@ void Settings::save() const {
            << L"  \"videoCodec\": " << videoCodec << L",\n"
            << L"  \"outputDirectory\": \"" << jsonEscape(outputDirectory.wstring()) << L"\"\n"
            << L"}\n";
+    output.flush();
     output.close();
+    if (!output) {
+        Logger::instance().write(L"ERROR", L"Failed to write settings.json");
+        std::error_code cleanup;
+        std::filesystem::remove(temporary, cleanup);
+        return;
+    }
     std::error_code error;
     std::filesystem::rename(temporary, target, error);
     if (error) {
         std::filesystem::remove(target, error);
+        error.clear();
         std::filesystem::rename(temporary, target, error);
+    }
+    if (error) {
+        Logger::instance().write(L"ERROR", L"Failed to replace settings.json");
+        std::filesystem::remove(temporary, error);
     }
 }
 
