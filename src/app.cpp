@@ -436,6 +436,11 @@ void App::postUiState(bool includeLibrary) {
     json += L",\"noiseGate\":" + std::to_wstring(settings_.noiseGate);
     json += L",\"capturingHotkey\":" + std::to_wstring(capturingHotkey_);
     json += L",\"fps\":" + std::to_wstring(static_cast<int>(std::lround(fpsMonitor_.fps())));
+    json += L",\"cpu\":" + std::to_wstring(static_cast<int>(std::lround(fpsMonitor_.cpuPercent())));
+    json += L",\"gpu\":" + std::to_wstring(static_cast<int>(std::lround(fpsMonitor_.gpuBusyPercent())));
+    json += L",\"dropped\":" + std::to_wstring(engine_.droppedFrames());
+    json += L",\"captured\":" + std::to_wstring(engine_.capturedFrames());
+    json += L",\"encoded\":" + std::to_wstring(engine_.encodedFrames());
     json += L",\"status\":\"" + jsonEscape(status_) + L"\"";
     json += L",\"overlayHotkey\":\"" + jsonEscape(hotkeyLabel(Hotkey::fromPacked(settings_.hotkeyOverlay))) + L"\"";
     json += L",\"hotkeys\":" + hotkeys;
