@@ -99,6 +99,7 @@
   .recordbar .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); display: inline-block; margin-right: 6px; }
   .recordbar.live .dot { background: var(--danger); box-shadow: 0 0 12px rgba(255,92,106,.7); }
   .recordbar.live .rb:first-child b { color: var(--danger); }
+  .recordbar.live #recordState { color: var(--danger); }
   .stats { display: grid; grid-template-columns: repeat(3, 120px); gap: 8px; }
   .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; text-align: center; }
   .stat span { color: var(--muted); font-size: 11px; }
@@ -293,8 +294,8 @@
     $("recordBar").classList.toggle("live", !!s.recording);
     $("recordState").textContent = s.recording ? "REC" : (s.saving ? "SAVING" : "READY");
     $("barFps").textContent = Math.round(s.fps || 0);
-    $("barGpu").textContent = Math.round(s.gpu || 0) + "%";
-    $("barCpu").textContent = Math.round(s.cpu || 0) + "%";
+    $("barGpu").textContent = Math.max(0, Math.round(s.gpu || 0)) + "%";
+    $("barCpu").textContent = Math.max(0, Math.round(s.cpu || 0)) + "%";
     $("barDrop").textContent = s.dropped || 0;
     $("fpsVal").textContent = Math.round(s.fps || 0);
     $("qualityVal").textContent = s.qualityLabel || qualityNames[s.res || 0];
