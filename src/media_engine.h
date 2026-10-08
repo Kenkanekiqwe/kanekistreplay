@@ -87,7 +87,7 @@ private:
     HRESULT writeQueuedFrame(const std::shared_ptr<EncodeSession>& session,
                              const QueuedFrame& frame);
     void encoderLoop();
-    void finishFile(const std::shared_ptr<EncodeSession>& session, uint64_t generation);
+    HRESULT finishFile(const std::shared_ptr<EncodeSession>& session, uint64_t generation);
     void abandonEncoderLocked();
     HRESULT publishFinishedFile(HRESULT finalizeResult);
     void captureLoop();
